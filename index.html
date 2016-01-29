@@ -1,0 +1,647 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <meta charset="utf8">
+        <script src="d3/d3.min.js"></script>
+        <style>
+            body {
+                font-family: 'Avenir', 'Helvetica Neue', 'Arial', sans-serif;
+                margin: 0;
+                background-color: #EEE;
+                color: #444;
+            }
+            #canvas {
+                background-color: #FFF;
+                width: 1000px;
+                margin: 0 auto;
+                border: 1px solid #CCC;
+            }
+            #links {
+                background-color: #FFF;
+                position:absolute;
+                width: 1000px;
+                margin: 0 auto;
+                top: 700px;
+                height: 0;
+                visibility: hidden;
+            }
+            .link {
+                padding: 0px 10px;
+                font-size: 14px;
+            }
+            .causal {
+                background-color: #86b9d6;
+            }
+            .barrier {
+                background-color: #ff5853;
+            }
+            .recommend {
+                background-color: #c8c8c8;
+            }
+            .linkInner {
+                background: rgba(255,255,255,0.72);
+            }
+            i {
+                font-size: 13px;
+                color: #888;
+                margin: auto 40px;
+            }
+            blockquote:before {
+                content: "\275b  ";
+                font-size: 23px;
+            }
+            blockquote:after {
+                content: "  \275c";
+                font-size: 23px;
+            }
+            h3, .linkFilter {
+                margin: 21px 40px;
+            }
+            .filter {
+                font-size: 16px;
+                padding: 13px;
+            }
+            #documents {
+                width: 1000px;
+                height: 350px;
+                position: absolute;
+                top: -350px;
+                font-size: 11px;
+                overflow-y: scroll;
+                padding: 0 0 0 700px;
+                pointer-events: none;
+            }
+            .doc, .linkInner {
+                padding: 15px 0;
+            }
+            .doc div {
+                width: 250px;
+            }
+            #back {
+                width: 1000px;
+                height: 0px;
+                top: 0px;
+                margin: 0 auto;
+                position: absolute;
+                pointer-events: none;
+            }
+            .button, .credit {
+                cursor: pointer;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="canvas">
+            <div id="documents"></div>
+            <div id="back"></div>
+            <div id="links">
+                <h3 style="float: left"></h3>
+                <div class="linkFilter" style="float: right">
+                    <label class="filter" style="color:#F89D2A"><input type="radio" name="filter" value="link" checked />All</label>
+                    <label class="filter" style="color:#86B9D6"><input type="radio" name="filter" value="causal">Causes</label>
+                    <label class="filter" style="color:#FF5853"><input type="radio" name="filter" value="barrier">Barriers</label>
+                    <label class="filter" style="color:#777"><input type="radio" name="filter" value="recommend">Recommendations</label>
+                </div>
+                <div style="clear: both"></div>
+            </div>
+        </div>
+    <script>
+        var height = 700;
+        var width = 1000;
+        var linkcolors = {
+            'causal':'#86b9d6',
+            'barrier':'#ff5853',
+            'recommend':'#c8c8c8'
+        };
+        var sdg = [{'sdg':1,'name':'No Poverty','color':'#E5233D'},{'sdg':2,'name':'Zero Hunger','color':'#DDA73A'},{'sdg':3,'name':'Good Health and Well-being','color':'#4CA146'},{'sdg':4,'name':'Quality Education','color':'#C7212F'},{'sdg':5,'name':'Gender Equality','color':'#EF402D'},{'sdg':6,'name':'Clean Water and Sanitation','color':'#27BFE6'},{'sdg':7,'name':'Affordable and Clean Energy','color':'#FBC412'},{'sdg':8,'name':'Decent Work and Economic Growth','color':'#A31C44'},{'sdg':9,'name':'Industry Innovation and Infrastructure','color':'#F26A2E'},{'sdg':10,'name':'Reduced Inequalities','color':'#DE1768'},{'sdg':12,'name':'Responsible Consumption and Production','color':'#BF8D2C'},{'sdg':13,'name':'Climate Action','color':'#407F46'},{'sdg':14,'name':'Life below Water','color':'#1F97D4'},{'sdg':15,'name':'Life on Land','color':'#59BA47'},{'sdg':16,'name':'Peace Justice and Strong Institutions','color':'#136A94'},{'sdg':17,'name':'Partnership for the goals','color':'#14496B'}];
+        var docs=["UN-Habitat State of the World Cities  2010 2011- Cities for All Bridging the Urban Divide.pdf", "IPCC AR 5 mitigation ipcc_wg3_ar5_full.pdf", "UNEP GEO5_report_full_en.pdf", "Un Habitat Status of urban women 2013 .pdf", "hdr_2009_en_complete.pdf", "IDFC_Investing_in_Sustainable_Cities_Paper_01-12-14.pdf", "WDR_2009_bookweb_1.pdf", "WDR_2009_bookweb_2.pdf", "UNDESA WESS2013.pdf", "WDR_2004 - English.pdf", "Un Habitat State of urban youth 2012 2013.pdf", "hdr2013_the rise of the south en_complete.pdf", "ISDR GAR2015_EN.pdf", "IIASA Global_Energy_Assessment_FullReport.pdf", "UN Habitat prosperity cities.pdf", "UNCTAD sceince techno for sust urbanization_en.pdf", "WB planning financing cities now.pdf", "UNW_progressreport 2015 2016.pdf", "WDR_2011_Full_Text.pdf", "WDR_2006 Equity and development.pdf", "UNESCO education for all 2015.pdf", "UN Habitatplanning and design for sustainable mobility 2013.pdf", "WDR_2012 Gender equality and development.pdf", "DESA 2013 InequalityMatters.pdf", "World Water report 2015.pdf", "World Bank Partnerships cities.pdf", "UNESCO Science Report 2010.pdf", "OECD environmental outlook to 2050.pdf", "WDR_2013_Report.pdf", "WB environmental health and child survival.pdf", "hdr14-report-vulnaerability and resilience en-1.pdf", "ISDR GAR2013_EN.pdf", "WDR_2010-Full-Text.pdf", "WB turn down the heat.pdf", "hdr_2004_complete.pdf", "IPCC AR 5 Adaptation WGIIAR5-TS_FINAL.pdf", "ILO World Social Protection Report 2014 2015.pdf", "hdr_2011_en_complete.pdf", "UNDESA 2011wess.pdf", "UNESCO EFA 2012 youth and skills.pdf", "OECD industrial policies in a changing world.pdf", "WHO World Helath Report 2013_eng.pdf", "IAASTD Agriculture at a Crossroads_Synthesis Report (English).pdf", "CBD gbo4-en-hr.pdf", "FAO state of food insecurity in the world 2014.pdf", "UNIDO_IDR_2013_main_report.pdf"];
+        var padding = 20;
+        var canvas = d3.select('div').append('svg');
+        canvas.attr('height',height);
+        canvas.attr('width', width);
+        var linksDiv = d3.select('#links');
+        var docsDiv = d3.select('#documents');
+        var outerRadius = (width-100)/4;
+        var arc = d3.svg.arc().outerRadius(outerRadius).innerRadius(outerRadius/1.5);
+        var spreadAngle = (2 * Math.PI)/sdg.length;
+        var emptySectorAngle;
+        var flowsclip = canvas.append('defs').append('clipPath').attr('id','flowsclip').append('svg:rect').attr('x',width/2).attr('y',0).attr('width',0).attr('height',height);
+        var chart = canvas.append('svg:g').classed('chart',true);
+        var duration = 1000;
+        var columnWidth = 300;
+        var flows = chart.append('g').classed('flows',true).style('clip-path','url(#flowsclip)');
+        var legendG;
+        var sdggroup = chart.append('svg:g').classed('sdggroup',true).attr('transform','translate('+ width/4 + ',' + height/2 + ')');
+        var sdgs = sdggroup.selectAll('.sdg').data(sdg).enter().append('g').classed('sdg',true).classed('button',true);
+        sdgs.append('svg:path').attr('d',function(d, i) {
+            var startAngle = i * spreadAngle
+            return arc.startAngle(startAngle).endAngle(startAngle + spreadAngle - (spreadAngle/10))();
+        }).attr('fill',function(d){return d.color;})
+        .attr('stroke', function(d){
+            var color = d3.rgb(d.color);
+            return color.darker(0.53);
+        }).attr('stroke-width','1px').attr('pointer-events','none');
+        sdgs.append('svg:text').classed('sdgName',true).attr('opacity',0).attr('pointer-events','none')
+        .attr('text-anchor','middle')
+        .attr('fill', '#f0f0f0')
+        .attr('font-size','12px');
+        var texts = sdgs.selectAll('.sdgName');
+        texts.append('svg:tspan').classed('topText',true).text(function(d){
+            if (d.sdg == 17) {
+                return "Partnership"
+            }
+            var aindex = d.name.indexOf(' and')
+            if (aindex!==-1) {
+                return d.name.substring(0,aindex);
+            }
+            return '';
+        })
+        .attr('x',0).attr('y',0).attr('dy',-15);
+        texts.append('svg:tspan').classed('midText',true).text(function(d){
+            if (d.sdg == 17) {
+                return "for the"
+            }
+            var aindex = d.name.indexOf(' and')
+            if (aindex!==-1) {
+                return 'and';
+            }
+            return d.name;
+        })
+        .attr('x',0).attr('y',0).attr('dy',0);
+        texts.append('svg:tspan').classed('lowText',true).text(function(d){
+            if (d.sdg == 17) {
+                return "goals"
+            }
+            var aindex = d.name.indexOf(' and')
+            if (aindex!==-1) {
+                return d.name.substring(aindex + 4);
+            }
+            return '';
+        })
+        .attr('x',0).attr('y',0).attr('dy',15);
+        var urbanDevBox = {
+            'x':((width-columnWidth)/2),
+            'y':(height-153)/2,
+            'width':columnWidth,
+            'height':153,
+            'rx':12,
+            'ry':12
+        };
+        var pieChart = chart.append('svg:g').classed('piechart',true).attr('transform','translate(280,180)');
+        var centerCircleRadius = 80;
+        var urbandev = chart.append('svg:g').classed('urbandev',true).attr('transform','translate('+ ((width/4)-centerCircleRadius) + ',' + ((height/2)-centerCircleRadius) + ')');
+        var urbandevColor = '#F89D2A';
+        urbandev.append('svg:rect')
+        .attr('x','0').attr('y','0').attr('width',centerCircleRadius * 2).attr('height',centerCircleRadius * 2)
+        .attr('rx',centerCircleRadius).attr('ry',centerCircleRadius)
+        .attr('fill',urbandevColor).attr('stroke',d3.rgb(urbandevColor).darker(0.53));
+        urbandev.append('svg:text').text('Sustainable Cities and Communities').attr('font-size','26px')
+        .attr('fill','#555').attr('transform','translate(' + width/2.8 + ',-26)');
+        
+        var subtext = chart.append('svg:text').attr('transform','translate(' + width/1.37 + ',' + height/2.5 + ')')
+        .attr('text-anchor','middle')
+        .attr('fill', '#777')
+        .attr('font-size','14px');
+        subtext.append('svg:tspan').text('Analyse text from various UN publications to better ').attr('x',0).attr('y',0).attr('dy',0);
+        subtext.append('svg:tspan').text('understand how the different Sustainable Development Goals').attr('x',0).attr('y',0).attr('dy',20);
+        subtext.append('svg:tspan').text('affect and are affected by the development of').attr('x',0).attr('y',0).attr('dy',40);
+        subtext.append('svg:tspan').text('sustainable cities and communities worldwide').attr('x',0).attr('y',0).attr('dy',60);
+        
+        var loadingText = chart.append('svg:text').attr('transform','translate(' + width/1.37 + ',' + height/1.7 + ')')
+        .attr('text-anchor','middle')
+        .attr('fill', '#777').text('Loading...')
+        .attr('font-size','11px');
+        
+        var creditText = chart.append('svg:text').classed('credit',true).attr('transform','translate(500,693)').attr('text-anchor','middle')
+        .attr('fill','#CBA').text('Visualization by Abdulqadir Rashik')
+        .attr('font-size','11px');
+        
+        creditText.on('click', function() {
+            window.open('mailto:abdulqadir.rashik@gmail.com');
+        });
+    </script>
+    <script src="underscore/underscore-min.js"></script>
+    <script src="links.json"></script>
+    <script>
+        loadingText.remove();
+        var button = chart.append('svg:rect').classed('button',true).attr('x',width/1.47).attr('y',height/1.8).attr('width','100').attr('height','30')
+        .attr('stroke','#CCC').attr('fill','#EEE')
+        .on('click',begin)
+        .on('mouseover',function(d) {
+            button.transition().duration(duration/4).attr('stroke-width','2px');
+        })
+        .on('mouseout',function(d) {
+            button.transition().duration(duration/4).attr('stroke-width','1px');
+        });
+        var buttonText = chart.append('svg:text').text('View').attr('x',width/1.4).attr('y',height/1.72+3).attr('font-size','16px').style('pointer-events','none');
+        
+        var backG = d3.select('#back').append('svg').attr('width','150px').attr('height','80px')
+        .append('svg:g').classed('back',true).attr('transform','translate(-210,0)');
+        var backButton = backG.append('svg:rect').classed('button',true).attr('x',40).attr('y',40).attr('width','100').attr('height','30')
+        .attr('stroke','#CCC').attr('fill','#EEE')
+        .on('click',back)
+        .on('mouseover',function(d) {
+            backButton.transition().duration(duration/4).attr('stroke-width','2px');
+        })
+        .on('mouseout',function(d) {
+            backButton.transition().duration(duration/4).attr('stroke-width','1px');
+        });
+        var backButtonText = backG.append('svg:text').text('Back').attr('x',73).attr('y',60).attr('font-size','16px').style('pointer-events','none');
+        
+        var totalTween = function(d, i, a) {
+            var elem = d3.select(this);
+            var interpolator = d3.interpolateRound(Number(elem.text()),d);
+            return function(t){
+                elem.text(interpolator(t));
+            };
+        };
+        
+        var causalFlowCount = [], barrierFlowCount = [], recommendFlowCount = [], totalFlowCount = [];
+        sdgs.selectAll('path').on('mouseover',function(d) {
+            var sdg = d3.select(this);
+            sdg.transition().duration(duration/4).attr('stroke-width','4px');
+            if (causalFlowCount.length) {
+                var index = d.sdg>11?d.sdg-1:d.sdg;
+                index = index-1;
+                legendG.selectAll('.legendTitle').text('SDG 11 & SDG ' + d.sdg);
+                legendG.selectAll('.legendTotals').data([causalFlowCount[index],barrierFlowCount[index],recommendFlowCount[index],totalFlowCount[index]])
+                .transition().duration(353).tween('text', totalTween);
+            }
+        })
+        .on('mouseout',function(d) {
+            var sdg = d3.select(this);
+            sdg.transition().duration(duration/4).attr('stroke-width','1px');
+            if (causalFlowCount.length) {
+                var index = d.sdg>11?d.sdg-1:d.sdg;
+                index = index-1;
+                legendG.selectAll('.legendTitle').text('All');
+                legendG.selectAll('.legendTotals').data([d3.sum(causalFlowCount),d3.sum(barrierFlowCount),d3.sum(recommendFlowCount),d3.sum(totalFlowCount)])
+                .transition().duration(353).tween('text', totalTween);
+            }
+        });
+        
+        sdgs.on('click',function(d) {
+            // Hide flows
+            flows.transition().duration(duration/3).attr('opacity','0');
+            
+            sdgs.selectAll('path').attr('pointer-events','none');
+            var clickedSdg = d3.select(this).datum();
+            var sdgNum = clickedSdg['sdg'];
+            var filteredLinks = _.filter(links,function(link){return _.contains(link.s, sdgNum);});
+            
+            legendG.transition().duration(duration/3).attr('transform','translate(425,580)').attr('opacity','0');
+            
+            // Overlay a rect on top of the selected path so that we can hide all paths and transition the rect instead
+            var rectBox = boxInfo(sdgNum>11?sdgNum-2:sdgNum-1);
+            var sdgRect = sdggroup.selectAll('rect').data([rectBox]).enter()
+            .append('svg:rect').attr('x',function(d){return d.x}).attr('y',function(d){return d.y})
+            .attr('rx',0).attr('ry',0)
+            .attr('width',function(d){return d.width}).attr('height',function(d){return d.height})
+            .attr('fill',clickedSdg.color);
+            sdgs.transition().duration(duration/3).attr('opacity', 0);
+            urbandev.selectAll('rect').transition().duration(duration).attr('x',220).attr('y',120).attr('rx',100).attr('ry',100).attr('width',120).attr('height',120);
+            urbandev.selectAll('text').transition().duration(duration).attr('opacity',0);
+            sdgRect.transition().duration(duration).attr('x',153).attr('y',53).attr('rx',200).attr('ry',200).attr('width',253).attr('height',253);
+            
+            // Show pie chart
+            var pie = d3.layout.pie()([_.filter(filteredLinks,function(link){return link.c == 'c';}).length, _.filter(filteredLinks,function(link){return link.c == 'b';}).length, _.filter(filteredLinks,function(link){return link.c == 'r';}).length])
+            var pieArc = d3.svg.arc().innerRadius(53).outerRadius(53);
+            pieChart.selectAll('path').data(pie).enter().append('svg:path').attr('d', function(d) {
+                return pieArc.startAngle(d.startAngle).endAngle(d.endAngle)();
+            }).attr('fill',function(d,i){
+                switch(i) {
+                    case 0:return linkcolors.causal;
+                    case 1:return linkcolors.barrier;
+                    case 2:return linkcolors.recommend;
+                    default: return '#EEE';
+                }
+            }).attr('opacity',0.53);
+            
+            pieArc.innerRadius(60).outerRadius(93);
+            pieChart.selectAll('path').transition().delay(duration).duration(duration).attr('d', function(d){
+                return pieArc.startAngle(d.startAngle).endAngle(d.endAngle)();
+            }).attr('opacity',1)
+            .attr('stroke', function(d,i) {
+                switch(i) {
+                    case 0:return d3.rgb(linkcolors.causal).darker(0.3);
+                    case 1:return d3.rgb(linkcolors.barrier).darker(0.3);
+                    case 2:return d3.rgb(linkcolors.recommend).darker(0.3);
+                    default: return '#333';
+                }
+            });
+            
+            // Get count of each type of link per file
+            var docList = _.pairs(_.mapObject(_.groupBy(filteredLinks,'f'),function(val){
+                return _.countBy(val,'c');
+            }));
+            
+            // Show documents
+            var doc = docsDiv.selectAll('.doc').data(docList).enter().append('div').classed('doc',true);
+            var docsvg = doc.append('svg').attr('width','250px').attr('height','30px').style('display','block');
+            var docscale = d3.scale.linear().range([0,250]);
+            docsvg.each(function(d,i) {
+                var counts = [d[1]['c']||0, d[1]['b']||0, d[1]['r']||0];
+                docscale.domain([0,counts[0]+counts[1]+counts[2]]);
+                var ranges = [[0,counts[0]],[counts[0],counts[0]+counts[1]],[counts[0]+counts[1],counts[0]+counts[1]+counts[2]]];
+                d3.select(this).selectAll('path').data(ranges).enter().append('svg:rect').attr('y',0).attr('height','23')
+                .attr('x',function(d){return docscale(d[0]);}).attr('width',function(d){return docscale(d[1]);})
+                .attr('fill',function(d,i){
+                    switch(i) {
+                        case 0:return linkcolors.causal;
+                        case 1:return linkcolors.barrier;
+                        case 2:return linkcolors.recommend;
+                        default: return '#EEE';
+                    }
+                });
+                d3.select(this).selectAll('text').data(ranges).enter().append('svg:text').attr('text-anchor','middle')
+                .text(function(d){return (d[1]-d[0])||'';}).attr('x',function(d){return docscale((d[0]+d[1])/2);})
+                .attr('y',15).attr('fill','#EEE').attr('opacity','0.72');
+            })
+            doc.append('div').text(function(d){
+                return docs[d[0]];
+            });
+            docsDiv.transition().delay(duration).duration(duration).style('top','0px');
+            
+            // Show links
+            linksDiv.selectAll('input')[0][0].checked=true;
+            linksDiv.style('visibility','visible');
+            linksDiv.selectAll('h3').text(String(sdgNum) + '. ' + clickedSdg['name']);
+            var link = linksDiv.selectAll('.link').data(filteredLinks).enter().append('div').classed('link',true)
+            .classed('causal', function(d){return d.c == 'c';})
+            .classed('barrier', function(d){return d.c == 'b';})
+            .classed('recommend', function(d){return d.c == 'r';})
+            .append('div').classed('linkInner',true);
+            link.append('blockquote').text(function(d){return d.t;});
+            link.append('i').text(function(d){return docs[d.f]; });
+            linksDiv.transition().duration(duration).style('top','350px').style('height','100%');
+            
+            backG.transition().duration(duration).attr('transform','translate(0,0)');
+            
+            // Show totals
+            chart.append('svg:text').classed('total',true).text(filteredLinks.length).attr('transform','translate(280,190)')
+            .attr('text-anchor','middle').attr('font-size','32px').attr('opacity',0).attr('fill','#EEE')
+            .transition().delay(duration).duration(duration).attr('opacity',0.72);
+            d3.select('#back').style('pointer-events','all');
+            d3.select('#documents').style('pointer-events','all');
+        });
+        
+        linksDiv.selectAll('input').on('click', function(){
+            var filter = d3.select(this).attr('value');
+            linksDiv.selectAll('.link').style('display', function(d){
+                if (d3.select(this).classed(filter)) {
+                    return 'block';
+                } else {
+                    return 'none';
+                }
+            });
+            pieChart.selectAll('path').transition().duration(duration).attr('opacity', function(d,i){
+                if (filter=='link' || (filter == 'causal' && i==0) || (filter == 'barrier' && i==1) || (filter == 'recommend' && i==2)) {
+                    return 1;
+                }
+                return 0.1;
+            });
+            d3.select('.total').text(linksDiv.selectAll('.'+filter).size());
+        });
+        
+        function back() {
+            d3.select('#back').style('pointer-events','');
+            d3.select('#documents').style('pointer-events','');
+            chart.selectAll('.total').remove();
+            backG.transition().duration(duration).attr('transform','translate(-530,0)');
+            linksDiv.transition().duration(duration).style('top','').style('height','');
+            linksDiv.selectAll('.link').data([]).exit().remove();
+            linksDiv.style('visibility','');
+            linksDiv.selectAll('h3').text('');
+            docsDiv.transition().duration(duration).style('top','');
+            docsDiv.selectAll('.doc').data([]).exit().remove();
+            
+            pieChart.selectAll('path').data([]).exit().remove();
+            
+            flows.transition().delay(duration/1.3).duration(duration).attr('opacity','1');
+            
+            sdgs.selectAll('path').attr('pointer-events','all');
+            
+            sdggroup.selectAll('rect').attr('opacity',1).transition().duration(duration)
+            .attr('x',function(d){return d.x}).attr('y',function(d){return d.y})
+            .attr('rx',0).attr('ry',0).attr('opacity',0.5)
+            .attr('width',function(d){return d.width}).attr('height',function(d){return d.height})
+            .transition().duration(0).remove();
+            sdgs.transition().delay(duration/1.8).duration(duration).attr('opacity', 1);
+            urbandev.selectAll('rect').transition().duration(duration).attr('x',urbanDevBox.x).attr('y',urbanDevBox.y).attr('rx',urbanDevBox.rx)
+            .attr('ry',urbanDevBox.ry).attr('width',urbanDevBox.width).attr('height',urbanDevBox.height);
+            urbandev.selectAll('text').transition().duration(duration).attr('opacity',1);
+            legendG.transition().duration(duration).attr('transform','translate(425,580)').attr('opacity','1');
+        }
+        
+        function pathString(d) {
+            var index = d.sdg>11?d.sdg-1:d.sdg;
+            index = index-1;
+            var startAngle = emptySectorAngle/2 + index * spreadAngle;
+            if (index > 7) {
+                startAngle = startAngle + emptySectorAngle;
+            }
+            return arc.startAngle(startAngle).endAngle(startAngle + spreadAngle - (spreadAngle/10))();
+        };
+        
+        function edgyPathString(d) {
+            // Replace elliptical arcs in path with straight lines
+            var path = pathString(d);
+            var re = /A[-\d\.]+,[-\d\.]+\s+[-\d\.]+\s+[-\d,\.]+,[-\d\.]+\s+([-\d\.]+,[-\d\.]+)/;
+            while (re.test(path)) {
+                var m = path.match(re);
+                path = path.replace(m[0],"L"+m[1]);
+            }
+            // Remove effect of translate transforms
+            var pointre = /[ML][-\d\.]+,[-\d\.]+/g;
+            var xre = /([-\d\.]+),/, yre = /,([-\d\.]+)/;
+            var points = path.match(pointre);
+            for (var i=0;i<points.length;i++) {
+                var m = points[i].match(xre);
+                var x = Number(m[1]) + sdgX(d) + width/2;
+                points[i] = points[i].replace(m[0],x + ',');
+                m = points[i].match(yre);
+                var y = Number(m[1]) + height/2;
+                points[i] = points[i].replace(m[0],',' + y);
+            }
+            return points.join();
+        };
+
+        function sdgX(d) {
+            var index = d.sdg>11?d.sdg-1:d.sdg;
+            return index>8?width+500+padding:-width-500-padding;
+        };
+        
+        var spreadHeight;
+        function boxInfo(index) {
+            var x, y;
+            if (index < 8) {
+                x = 830;
+                y = index * spreadHeight;
+            } else {
+                x = 0;
+                y = (7-index%8) * spreadHeight;
+            }
+            x = x+padding/2;
+            y = y+padding;
+            return {'x':x,'y':y,'width':(columnWidth/2),'height':spreadHeight*0.8};
+        }
+            
+        // Begin interactive visualization
+        function begin() {
+            /* Transition to multi-column layout */
+            subtext.remove();
+            buttonText.remove();
+            button.remove();
+            creditText.attr('opacity',1).transition().duration(duration).attr('opacity',0).transition().remove();
+            urbandev.transition().duration(duration).attr('transform','');
+            urbandev.selectAll('rect').transition().duration(duration).attr('rx',urbanDevBox.rx).attr('ry',urbanDevBox.ry)
+            .attr('x', urbanDevBox.x).attr('y', urbanDevBox.y)
+            .attr('height', urbanDevBox.height).attr('width',urbanDevBox.width);
+            urbandev.select('text').transition().duration(duration).attr('fill','#f0f0f0')
+            .attr('transform','translate(' + (urbanDevBox.x + 38) + ',' + height/2 + ')')
+            .attr('font-size','14px');
+            sdggroup.transition().duration(duration).attr('transform','translate('+ width/2 + ',' + height/2 + ')')
+            .transition().duration(0).attr('transform','');
+            
+            // Expand the SDG circle, while still ensuring they do not go off-screen
+            // Divide the circle into 4 sectors
+            // SDGs will be drawn in the left and right sectors, while top and bottom will remain empty
+            outerRadius = width*2;
+            arc.outerRadius(outerRadius).innerRadius(outerRadius-125);
+            emptySectorAngle = 9*Math.PI/10;
+            spreadAngle = (2 * (Math.PI - emptySectorAngle)) / sdg.length;
+            
+            sdgs.transition().duration(duration).attr('transform', function(d){
+                return 'translate(' + sdgX(d) + ',0)';
+            }).transition().duration(0).attr('transform','');
+            
+            // Finally transition into simple rectangles
+            spreadHeight = (height-(2*padding))*2/sdg.length;
+            var boxArea = d3.svg.area().y0(function(d) {
+                return d[1];
+            }).y1(function(d){
+                return d[1] + spreadHeight * 0.8;
+            });
+            sdgs.selectAll('path').transition().duration(duration).attr('d',pathString)
+            .transition().duration(0).attr('d', edgyPathString)
+            .transition().duration(duration)
+            .attrTween('d', function(d) {
+                var index = d.sdg>11?d.sdg-1:d.sdg;
+                index = index-1;
+                var box = boxInfo(index);
+                return d3.interpolate(edgyPathString(d), boxArea([[box.x+box.width,box.y],[box.x,box.y]]));
+            })
+            .transition().duration(duration).attr('pointer-events','all');
+            sdgs.selectAll('.sdgName')
+            .attr('transform', function(d) {
+                var index = d.sdg>11?d.sdg-1:d.sdg;
+                index = index-1;
+                if (index < 8) {
+                    x = 830;
+                    y = index * spreadHeight;
+                } else {
+                    x = 0;
+                    y = (7-index%8) * spreadHeight;
+                }
+                x = x + padding/2 + columnWidth/4;
+                y = y + padding + (spreadHeight*0.4);
+                return 'translate(' + x + ',' + y + ')';
+            })
+            .transition().delay(duration).duration(duration).attr('opacity',1);
+            
+            // Show flows
+            for (var i=1; i<17;i++) {
+                var j = i;
+                if (j>10) {
+                    j= j+1;
+                }
+                var sdglinks = _.filter(links,function(link){return _.contains(link.s, j);});
+                causalFlowCount.push(_.filter(sdglinks,function(link){return link.c == 'c';}).length);
+                barrierFlowCount.push(_.filter(sdglinks,function(link){return link.c == 'b';}).length);
+                recommendFlowCount.push(_.filter(sdglinks,function(link){return link.c == 'r';}).length);
+                totalFlowCount.push(sdglinks.length);
+            }
+            var sumCausalFlow = [d3.sum(_.first(causalFlowCount,8)), d3.sum(_.last(causalFlowCount,8))];
+            var sumBarrierFlow = [d3.sum(_.first(barrierFlowCount,8)), d3.sum(_.last(barrierFlowCount,8))];
+            var sumRecommendFlow = [d3.sum(_.first(recommendFlowCount,8)), d3.sum(_.last(recommendFlowCount,8))];
+            var sumTotalFlow = [d3.sum(_.first(totalFlowCount,8)),d3.sum(_.last(totalFlowCount,8))];
+            
+            function drawFlow(from, to, color) {
+                var outp = 103;
+                var extrude = 21;
+                if (to.x < from.x) {
+                    outp *= -1;
+                    extrude *= -1;
+                }
+                var path = 'M' + from.x + ',' + from.y;
+                path = path + 'L' + (from.x + extrude) + ',' + from.y;
+                path = path + 'C ' + (from.x+outp) + ' ' + from.y + ' ' + (to.x-outp-extrude) + ' ' + to.y + ' ' + (to.x-extrude) + ' ' + to.y;
+                path = path + 'L' + to.x + ',' + to.y + 'L' + to.x + ',' + (to.y + to.h) + 'L' + (to.x-extrude) + ',' + (to.y + to.h)
+                path = path + 'C' + (to.x-outp-extrude) + ' ' + to.y + ' ' + (from.x+outp+extrude) + ' ' + (from.y + from.h) + ' ' + (from.x+extrude) + ' ' + (from.y + from.h);
+                path = path + 'L' + from.x + ',' + (from.y + from.h) + 'Z';
+                flows.append('svg:path').attr('d',path).attr('fill',color).attr('opacity',0.53).attr('stroke',d3.rgb(color).darker(1)).attr('stroke-width','1px');
+            }
+            
+            var flowDrawOrder = [0, 7, 1, 6, 2, 5, 3, 4, 15, 8, 14, 9, 13, 10, 12, 11];
+            var uscale = d3.scale.linear(), sscale = d3.scale.linear();
+            uscale.range([urbanDevBox.y + urbanDevBox.ry,urbanDevBox.y + urbanDevBox.height - urbanDevBox.ry]);
+            sscale.range([0,spreadHeight * 0.8]).domain([0,_.max(totalFlowCount)]);
+            for (var i=0; i<sdg.length;i++){
+                var fi;
+                if (i==0 || i==8) {
+                    fi = i/8;
+                    uscale.domain([0,sumTotalFlow[0] + sumTotalFlow[1]]);
+                }
+                var index = flowDrawOrder[i];
+                var sdgBox = boxInfo(index);
+                var x1,x2,y1,y2;
+                y1 = uscale(0);
+                y2 = sdgBox.y + sscale((_.max(totalFlowCount) - totalFlowCount[index])/2);
+                if (i<8) {
+                    x1 = urbanDevBox.x + urbanDevBox.width - 2;
+                    x2 = sdgBox.x;
+                } else {
+                    x1 = urbanDevBox.x + 2;
+                    x2 = sdgBox.x + sdgBox.width;
+                }
+                var h1 = uscale(sumCausalFlow[0] + sumCausalFlow[1]) - uscale(0);
+                var h2 = sscale(causalFlowCount[index]);
+                drawFlow({'x':x1,'y':y1,'h':h1},{'x':x2,'y':y2,'h':h2},linkcolors.causal);
+                y1 += h1;
+                y2 += h2;
+                h1 = uscale(sumBarrierFlow[0] + sumBarrierFlow[1]) - uscale(0);
+                h2 = sscale(barrierFlowCount[index]);
+                drawFlow({'x':x1,'y':y1,'h':h1},{'x':x2,'y':y2,'h':h2},linkcolors.barrier);
+                if (recommendFlowCount[index]) {
+                    y1 += h1;
+                    y2 += h2;
+                    h1 = uscale(sumRecommendFlow[0] + sumRecommendFlow[1]) - uscale(0);
+                    h2 = sscale(recommendFlowCount[index]);
+                    drawFlow({'x':x1,'y':y1,'h':h1},{'x':x2,'y':y2,'h':h2},linkcolors.recommend);
+                }
+            }
+            flowsclip.attr('x',urbanDevBox.x+20).attr('width',urbanDevBox.width-40).transition().delay(duration).duration(4000).attr('x',0).attr('width',width);
+            
+            var legend = [['Causal Links',linkcolors.causal],['Barriers',linkcolors.barrier],['Recommendations',linkcolors.recommend],['Total','#FFF']];
+            legendG = chart.append('svg:g').classed('legend',true).attr('transform','translate(425,786)');
+            legendG.append('svg:text').classed('legendTitle',true).text('All').attr('x',73).attr('y',-25.5).attr('font-size','12px').attr('fill','#777')
+            .attr('text-anchor','middle');
+            legendG.selectAll('rect').data(legend).enter().append('svg:rect').attr('x',0).attr('y',function(d,i){return (i-0.5)*20;})
+            .attr('width',20).attr('height',12).attr('fill',function(d){return d[1];});
+            legendG.selectAll('.caption').data(legend).enter().append('svg:text').classed('caption',true).text(function(d){return d[0];}).attr('font-size','12px')
+            .attr('transform',function(d,i){
+                return 'translate(72,'+ i*20 + ')';
+            }).attr('fill','#777');
+            legendG.selectAll('.legendTotals').data([d3.sum(sumCausalFlow),d3.sum(sumBarrierFlow),d3.sum(sumRecommendFlow),d3.sum(sumTotalFlow)]).enter().append('svg:text')
+            .classed('legendTotals',true).text(function(d){return d;}).attr('font-size','12px')
+            .attr('transform',function(d,i){
+                return 'translate(37,'+ i*20 + ')';
+            }).attr('fill','#777').attr('opacity','1');
+            legendG.append('svg:text').text('Click any SDG to view details').attr('font-size','12px').attr('fill','#777')
+            .attr('y',100).attr('transform','translate(15,0)');
+            legendG.transition().delay(duration).duration(duration).attr('transform','translate(425,580)').attr('opacity','1');
+        }
+    </script>
+    </body>
+</html>
+
